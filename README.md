@@ -4,7 +4,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version 0.4.0](https://img.shields.io/badge/version-0.4.0-orange.svg)]()
+[![Version 0.5.0](https://img.shields.io/badge/version-0.5.0-orange.svg)]()
 
 One command. Find vulnerabilities in your AI agent code.
 
@@ -17,7 +17,7 @@ One command. Find vulnerabilities in your AI agent code.
   - **L2** — Ollama semantic filter (removes false positives, ~24s/batch)
   - **L3** — DeepSeek deep audit (attack paths + PoC + CVSS + fix, on HIGH/CRITICAL only)
   - **L4** — Cross-finding attack chain synthesis (how vulns combine into full attack campaigns) — *unique to AgentVet*
-- **17 Detection Rules** covering prompt injection, tool authorization bypass, data leakage, framework security, secret exposure, and MCP config hardening
+- **22 Detection Rules** across 7 categories: prompt injection, tool authorization, data leakage, framework security, secret exposure, MCP config, and supply-chain
 - **Web Dashboard** — React + Tailwind UI with scan history and per-finding drilldown
 - **CLI Tool** — `agentvet scan ./my-agent --depth 3`
 - **Zero data leaves your machine** (L1 is local-only; L2 uses local Ollama; L3 is opt-in via API key)
@@ -133,8 +133,13 @@ scan target
 | MCP-001 | MCP Config | MCP server registered without authentication |
 | MCP-002 | MCP Config | MCP server env contains plaintext secrets |
 | MCP-003 | MCP Config | MCP server command from user-writable path |
+| MCP-004 | MCP Config | MCP tool description contains prompt injection payload |
+| PI-004 | Prompt Injection | IDE rule file (.cursorrules/.windsurfrules) with suspicious directives |
+| TA-003 | Tool Auth | Cross-agent delegation loses caller permission context |
+| SC-001 | Supply Chain | Skill/plugin contains obfuscated payload or exfiltration endpoint |
+| SC-002 | Supply Chain | Skill manifest references suspicious external URL (pastebin/raw/gist) |
 
-All 17 rules auto-discover from `scanner/rules/` — no registration needed. Each rule maps to OWASP LLM Top 10 (2025) and OWASP Agentic AI Top 10 categories.
+All 22 rules auto-discover from `scanner/rules/` — no registration needed. Each rule maps to OWASP LLM Top 10 (2025) and OWASP Agentic AI Top 10 categories.
 
 ### Project Structure
 

@@ -11,7 +11,6 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Optional
 
 import requests
 

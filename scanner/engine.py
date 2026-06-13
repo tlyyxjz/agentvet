@@ -16,7 +16,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Optional
 
 from .findings import Finding, ScanReport
 
@@ -46,21 +46,40 @@ class RegexRule(Rule):
         findings = []
         lines = content.split("\n")
         for pattern, desc in self.patterns:
-            for i, line in enumerate(lines, start=1):
-                if re.search(pattern, line, re.IGNORECASE):
+            # Detect multiline patterns: explicit \n, (?:\n|.), or DOTALL-required constructs
+            is_multiline = "\\n" in pattern or "(?:\\n|.)" in pattern
+            if is_multiline:
+                for match in re.finditer(pattern, content, re.IGNORECASE | re.DOTALL):
+                    line_no = content[:match.start()].count("\n") + 1
                     findings.append(
                         Finding(
                             rule_id=self.rule_id,
                             title=self.title,
                             severity=self._severity(),
                             file_path=file_path,
-                            line_number=i,
+                            line_number=line_no,
                             description=desc,
-                            code_snippet=self._get_context(lines, i),
+                            code_snippet=self._get_context(lines, line_no),
                             fix_suggestion=self.fix_suggestion(),
                             owasp_ids=list(self.owasp_ids),
                         )
                     )
+            else:
+                for i, line in enumerate(lines, start=1):
+                    if re.search(pattern, line, re.IGNORECASE):
+                        findings.append(
+                            Finding(
+                                rule_id=self.rule_id,
+                                title=self.title,
+                                severity=self._severity(),
+                                file_path=file_path,
+                                line_number=i,
+                                description=desc,
+                                code_snippet=self._get_context(lines, i),
+                                fix_suggestion=self.fix_suggestion(),
+                                owasp_ids=list(self.owasp_ids),
+                            )
+                        )
         return findings
 
     def _severity(self):
@@ -71,7 +90,7 @@ class RegexRule(Rule):
     def _get_context(self, lines: list[str], line_no: int, context: int = 3) -> str:
         start = max(0, line_no - context - 1)
         end = min(len(lines), line_no + context)
-        return "\n".join(f"{i+1}: {l}" for i, l in enumerate(lines[start:end], start=start))
+        return "\n".join(f"{i+1}: {ln}" for i, ln in enumerate(lines[start:end], start=start))
 
     def fix_suggestion(self) -> str:
         return ""
@@ -268,7 +287,7 @@ class ScanEngine:
             return True
         # Single-line file longer than 500 chars is almost certainly minified
         lines = content.split("\n")
-        if len(lines) < 3 and sum(len(l) for l in lines) > 500:
+        if len(lines) < 3 and sum(len(ln) for ln in lines) > 500:
             return True
         # Files with average line > 400 chars
         if len(lines) > 0 and (len(content) / len(lines)) > 400:
@@ -277,7 +296,10 @@ class ScanEngine:
 
     def _collect_files(self, target: Path, file_patterns: Optional[list[str]]) -> list[Path]:
         """Collect files to scan."""
-        patterns = file_patterns or ["*.py", "*.js", "*.ts", "*.tsx", "*.jsx", "*.json"]
+        patterns = file_patterns or [
+        "*.py", "*.js", "*.ts", "*.tsx", "*.jsx", "*.json",
+        ".cursorrules", ".windsurfrules",
+    ]
 
         if target.is_file():
             return [target]

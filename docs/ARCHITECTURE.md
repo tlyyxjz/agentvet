@@ -51,7 +51,8 @@ agentvet/
 │       ├── data_leak.py          # DL-001/002
 │       ├── frameworks.py        # FW-001/002/003/004
 │       ├── secrets.py           # SEC-001/002/003
-│       └── mcp_config.py        # MCP-001/002/003
+│       ├── mcp_config.py        # MCP-001/002/003/004
+│       └── supply_chain.py      # SC-001/002
 ├── cli/                  # CLI tool
 │   └── main.py           # `agentvet scan ./dir --depth 3`
 ├── quick_scan.py         # Standalone scan script (legacy convenience)
@@ -109,6 +110,11 @@ Each rule is a Python class inheriting from `RegexRule` (or `ASTRule`):
 | MCP-001 | MCP Config | MCP server without authentication |
 | MCP-002 | MCP Config | MCP server env contains plaintext secrets |
 | MCP-003 | MCP Config | MCP server command from user-writable path |
+| MCP-004 | MCP Config | MCP tool description contains prompt injection payload |
+| PI-004 | Prompt Injection | IDE rule file (.cursorrules) with suspicious directives |
+| TA-003 | Tool Auth | Cross-agent delegation loses caller permission context |
+| SC-001 | Supply Chain | Skill contains obfuscated payload or exfiltration endpoint |
+| SC-002 | Supply Chain | Skill manifest references suspicious external URL |
 
 **Add a new rule:** create a `.py` file in `scanner/rules/`, subclass `RegexRule` or `ASTRule`, set `rule_id` / `title` / `description`. The engine auto-discovers `Rule` subclasses — no registration needed.
 
