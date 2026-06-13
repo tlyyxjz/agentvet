@@ -47,6 +47,7 @@ class DirectInputConcatRule(RegexRule):
     )
     patterns = _CONCAT_PATTERNS
     file_patterns = ["*.py", "*.js", "*.ts", "*.tsx", "*.jsx"]
+    owasp_ids = ["LLM01"]
 
     def _severity(self):
         return Severity.HIGH
@@ -75,6 +76,7 @@ class MissingInputSanitization(RegexRule):
         (rf'{_USER_INPUT_VARS}\s*\)?\s*\n\s*{_LLM_CALLS}', "用户输入未经清理直接传给LLM"),
     ]
     file_patterns = ["*.py", "*.js", "*.ts", "*.tsx", "*.jsx"]
+    owasp_ids = ["LLM01"]
 
     def _severity(self):
         return Severity.MEDIUM
@@ -105,6 +107,7 @@ class NoSystemDefenseRule(RegexRule):
         ),
     ]
     file_patterns = ["*.py", "*.js", "*.ts", "*.tsx", "*.jsx"]
+    owasp_ids = ["LLM01", "LLM07"]
 
     def _severity(self):
         return Severity.MEDIUM

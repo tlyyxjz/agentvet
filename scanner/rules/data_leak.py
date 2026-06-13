@@ -50,6 +50,7 @@ class LogSensitiveDataRule(RegexRule):
         ),
     ]
     file_patterns = ["*.py", "*.js", "*.ts", "*.tsx", "*.jsx"]
+    owasp_ids = ["LLM02"]
 
     def _severity(self):
         return Severity.MEDIUM
@@ -86,6 +87,7 @@ class ExternalServiceNoAuditRule(RegexRule):
         ),
     ]
     file_patterns = ["*.py", "*.js", "*.ts", "*.tsx", "*.jsx"]
+    owasp_ids = ["LLM02"]
 
     def _severity(self):
         return Severity.MEDIUM

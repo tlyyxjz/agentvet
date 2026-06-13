@@ -12,15 +12,16 @@
 | Database | SQLite | Single-file, zero config |
 | Frontend | React 18 + Vite + Tailwind | MIT license, fast dev |
 
-## 3-Tier Detection Pipeline
+## 4-Tier Detection Pipeline
 
-All three tiers are **implemented and operational**.
+All four tiers are **implemented and operational**.
 
 | Tier | Technology | Cost | When | Coverage |
 |------|-----------|------|------|----------|
 | L1 | Regex + AST rules | $0 | Always | Broad pattern matching |
 | L2 | Ollama semantic filter | $0 (local) | `depth >= 2` | Removes ~30% false positives |
 | L3 | DeepSeek deep audit | ~$0.01/scan | `depth >= 3` | Attack path analysis on HIGH/CRITICAL |
+| L4 | DeepSeek chain synthesis | ~$0.005/scan | `depth >= 3` | Cross-finding attack chain composition |
 
 ### Pipeline Flow
 
@@ -28,9 +29,10 @@ All three tiers are **implemented and operational**.
 L1: 20 findings (noisy)
   → L2: 4 findings (noise removed)
     → L3: 4 audited (attack path + PoC + CVSS + fix)
+      → L4: 1 attack chain (how 4 vulns combine into a full campaign)
 ```
 
-Depth control: `--depth 1` = L1 only, `--depth 2` = L1+L2, `--depth 3` = full pipeline.
+Depth control: `--depth 1` = L1 only, `--depth 2` = L1+L2, `--depth 3` = full pipeline (L1+L2+L3+L4).
 
 ## Project Structure
 
@@ -42,10 +44,14 @@ agentvet/
 │   ├── findings.py       # Finding + ScanReport data models
 │   ├── l2_filter.py      # L2 Ollama semantic filter (batch classify)
 │   ├── l3_audit.py       # L3 DeepSeek deep audit (per-finding)
+│   ├── l4_chain.py       # L4 attack chain synthesis (AgentVet differentiator)
 │   └── rules/
 │       ├── prompt_injection.py   # PI-001/002/003
 │       ├── tool_auth.py          # TA-001/002
-│       └── data_leak.py          # DL-001/002
+│       ├── data_leak.py          # DL-001/002
+│       ├── frameworks.py        # FW-001/002/003/004
+│       ├── secrets.py           # SEC-001/002/003
+│       └── mcp_config.py        # MCP-001/002/003
 ├── cli/                  # CLI tool
 │   └── main.py           # `agentvet scan ./dir --depth 3`
 ├── quick_scan.py         # Standalone scan script (legacy convenience)
@@ -82,7 +88,7 @@ GET  /api/stats                    → Aggregate statistics
 
 ## Detection Rules
 
-Each rule is a Python class inheriting from `RegexRule`:
+Each rule is a Python class inheriting from `RegexRule` (or `ASTRule`):
 
 | ID | Category | Rule |
 |----|----------|------|
@@ -93,8 +99,18 @@ Each rule is a Python class inheriting from `RegexRule`:
 | TA-002 | Tool Auth | Missing tool permission check |
 | DL-001 | Data Leak | Sensitive data in logs |
 | DL-002 | Data Leak | External service without audit |
+| FW-001 | Frameworks | LangChain @tool without confirmation |
+| FW-002 | Frameworks | AutoGen code exec without Docker sandbox |
+| FW-003 | Frameworks | CrewAI Task code exec without validation |
+| FW-004 | Frameworks | Dify plugin API missing permission check |
+| SEC-001 | Secrets | AI provider API key in source code |
+| SEC-002 | Secrets | Cloud provider credential in source code |
+| SEC-003 | Secrets | Generic password/token/db-url in source code |
+| MCP-001 | MCP Config | MCP server without authentication |
+| MCP-002 | MCP Config | MCP server env contains plaintext secrets |
+| MCP-003 | MCP Config | MCP server command from user-writable path |
 
-Add a new rule: create a file in `scanner/rules/`, subclass `RegexRule`, and register in `engine.py`'s `_default_rules()`.
+**Add a new rule:** create a `.py` file in `scanner/rules/`, subclass `RegexRule` or `ASTRule`, set `rule_id` / `title` / `description`. The engine auto-discovers `Rule` subclasses — no registration needed.
 
 ## Configuration
 

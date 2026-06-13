@@ -58,6 +58,7 @@ class HighRiskToolNoConfirmRule(RegexRule):
     ]
 
     file_patterns = ["*.py", "*.js", "*.ts", "*.tsx", "*.jsx"]
+    owasp_ids = ["LLM06", "AG-10"]
 
     def _severity(self):
         return Severity.HIGH
@@ -107,6 +108,7 @@ class MissingToolPermissionRule(RegexRule):
         ),
     ]
     file_patterns = ["*.py", "*.js", "*.ts", "*.tsx", "*.jsx"]
+    owasp_ids = ["LLM06", "AG-03"]
 
     def _severity(self):
         return Severity.HIGH

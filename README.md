@@ -4,7 +4,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-orange.svg)]()
+[![Version 0.4.0](https://img.shields.io/badge/version-0.4.0-orange.svg)]()
 
 One command. Find vulnerabilities in your AI agent code.
 
@@ -12,11 +12,12 @@ One command. Find vulnerabilities in your AI agent code.
 
 ## Features
 
-- **3-Tier Detection Pipeline**
+- **4-Tier Detection Pipeline**
   - **L1** — Regex + AST patterns (fast, broad coverage)
   - **L2** — Ollama semantic filter (removes false positives, ~24s/batch)
   - **L3** — DeepSeek deep audit (attack paths + PoC + CVSS + fix, on HIGH/CRITICAL only)
-- **7 Detection Rules** covering prompt injection, tool authorization bypass, and data leakage
+  - **L4** — Cross-finding attack chain synthesis (how vulns combine into full attack campaigns) — *unique to AgentVet*
+- **17 Detection Rules** covering prompt injection, tool authorization bypass, data leakage, framework security, secret exposure, and MCP config hardening
 - **Web Dashboard** — React + Tailwind UI with scan history and per-finding drilldown
 - **CLI Tool** — `agentvet scan ./my-agent --depth 3`
 - **Zero data leaves your machine** (L1 is local-only; L2 uses local Ollama; L3 is opt-in via API key)
@@ -35,7 +36,7 @@ One command. Find vulnerabilities in your AI agent code.
 ### Install
 
 ```bash
-git clone https://github.com/agentvet/agentvet.git
+git clone https://github.com/tlyyxjz/agentvet.git
 cd agentvet
 
 # Using pip
@@ -99,13 +100,16 @@ Copy `.env.example` to `.env` and set your values:
 scan target
   │
   ├─ L1: RegexRule + ASTRule  (~1s,  free, ~60% coverage)
-  │   └─ 7 rules × N files
+  │   └─ 17 rules auto-discovered from scanner/rules/
   │
   ├─ L2: Ollama qwen3:8b     (~24s, free, removes ~30% noise)
   │   └─ Batch classify: REAL vs NOISE
   │
-  └─ L3: DeepSeek-chat       (~10s/finding, ~$0.01/scan)
-      └─ Attack path + exploit demo + CVSS + fix
+  ├─ L3: DeepSeek-chat       (~10s/finding, ~$0.01/scan)
+  │   └─ Per-finding: attack path + exploit demo + CVSS + fix
+  │
+  └─ L4: DeepSeek-chat       (~15s, one call total)
+      └─ Cross-finding chain synthesis: how vulns combine into attack campaigns
 ```
 
 ### Detection Rules
@@ -119,6 +123,18 @@ scan target
 | TA-002 | Tool Auth | Missing tool permission check |
 | DL-001 | Data Leak | Sensitive data logged |
 | DL-002 | Data Leak | External service call without audit |
+| FW-001 | Frameworks | LangChain @tool executes dangerous op without confirm |
+| FW-002 | Frameworks | AutoGen code execution without Docker sandbox |
+| FW-003 | Frameworks | CrewAI Task allows code exec without validation |
+| FW-004 | Frameworks | Dify plugin API endpoint missing permission check |
+| SEC-001 | Secrets | AI provider API key embedded in source code |
+| SEC-002 | Secrets | Cloud provider credential in source code |
+| SEC-003 | Secrets | Generic password/token/db-url in source code |
+| MCP-001 | MCP Config | MCP server registered without authentication |
+| MCP-002 | MCP Config | MCP server env contains plaintext secrets |
+| MCP-003 | MCP Config | MCP server command from user-writable path |
+
+All 17 rules auto-discover from `scanner/rules/` — no registration needed. Each rule maps to OWASP LLM Top 10 (2025) and OWASP Agentic AI Top 10 categories.
 
 ### Project Structure
 

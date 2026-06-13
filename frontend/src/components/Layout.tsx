@@ -21,7 +21,7 @@ export default function Layout() {
         </nav>
 
         <div className="text-xs text-gray-600">
-          v0.1.0 — Free tier (10 scans/mo)
+          v0.4.0 — Free tier (10 scans/mo)
         </div>
       </aside>
 

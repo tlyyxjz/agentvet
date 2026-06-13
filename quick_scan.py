@@ -37,12 +37,13 @@ def main():
 
     use_l2 = args.depth >= 2
     use_l3 = args.depth >= 3
+    use_l4 = args.depth >= 3
 
     print(f"AgentVet scanning: {args.target}")
-    print(f"Depth: L1 + {'L2 (semantic)' if use_l2 else ''} + {'L3 (deep audit)' if use_l3 else ''}")
+    print(f"Depth: L1 + {'L2 (semantic)' if use_l2 else ''} + {'L3 (deep audit)' if use_l3 else ''} + {'L4 (chain)' if use_l4 else ''}")
     print("─" * 50)
 
-    engine = ScanEngine(use_l2=use_l2, use_l3=use_l3)
+    engine = ScanEngine(use_l2=use_l2, use_l3=use_l3, use_l4=use_l4)
     report = engine.scan(args.target)
 
     if args.json:
@@ -55,7 +56,10 @@ def main():
             "l3_audited": report.l3_audited_count,
             "l3_model": report.l3_model,
             "l3_duration_ms": round(report.l3_duration_ms, 0),
+            "l4_chain": report.chain is not None,
         }
+        data["owasp_coverage"] = report.owasp_coverage
+        data["attack_chain"] = report._chain_to_dict()
         print(json.dumps(data, ensure_ascii=False, indent=2))
         return
 

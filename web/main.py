@@ -22,12 +22,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
+from scanner import __version__
 from scanner.engine import ScanEngine
 from scanner.findings import ScanReport
 
 app = FastAPI(
     title="AgentVet API",
-    version="0.1.0",
+    version=__version__,
     description="AI Agent Security Scanner — detect prompt injection, tool auth bypass, data leaks",
 )
 
@@ -85,6 +86,8 @@ class ScanResponse(BaseModel):
     duration_ms: float
     summary: dict
     findings: list[dict]
+    attack_chain: Optional[dict] = None
+    owasp_coverage: Optional[dict] = None
     tiers: dict = {}
 
 
@@ -103,7 +106,7 @@ class ScanHistoryItem(BaseModel):
 
 @app.get("/")
 def root():
-    return {"service": "AgentVet API", "version": "0.1.0", "docs": "/docs"}
+    return {"service": "AgentVet API", "version": __version__, "docs": "/docs"}
 
 
 @app.post("/scan", response_model=ScanResponse)
@@ -118,6 +121,7 @@ def scan_target(target: str, depth: int = 3):
     engine = ScanEngine(
         use_l2=depth >= 2,
         use_l3=depth >= 3,
+        use_l4=depth >= 3,
     )
     report = engine.scan(target)
     return _save_and_respond(report)
@@ -130,7 +134,7 @@ async def upload_and_scan(file: UploadFile = File(...)):
     tmp_path = Path(tempfile.gettempdir()) / f"agentvet_upload_{uuid.uuid4().hex[:8]}.py"
     tmp_path.write_bytes(content)
 
-    engine = ScanEngine()
+    engine = ScanEngine(use_l4=False)  # single-file upload; chain analysis needs full project
     report = engine.scan(str(tmp_path))
 
     # Clean up
@@ -262,6 +266,8 @@ def _save_and_respond(report: ScanReport) -> dict:
             "total": len(report.findings),
         },
         "findings": [f.to_dict() for f in report.findings],
+        "attack_chain": report._chain_to_dict() if hasattr(report, '_chain_to_dict') else None,
+        "owasp_coverage": report.owasp_coverage,
         "tiers": {
             "l1_findings": len(report.findings) + report.l2_filtered_count,
             "l2_dropped": report.l2_filtered_count,
@@ -270,5 +276,6 @@ def _save_and_respond(report: ScanReport) -> dict:
             "l3_audited": report.l3_audited_count,
             "l3_model": report.l3_model,
             "l3_duration_ms": round(report.l3_duration_ms, 0),
+            "l4_chain": report.chain is not None,
         },
     }

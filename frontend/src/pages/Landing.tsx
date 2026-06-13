@@ -7,7 +7,7 @@ export default function Landing() {
       <nav className="flex items-center justify-between px-8 py-4 border-b border-gray-800">
         <span className="text-xl font-bold gradient-text">AgentVet</span>
         <div className="flex gap-4 items-center">
-          <a href="https://github.com/agentvet/agentvet" className="text-gray-400 hover:text-gray-200 text-sm">
+          <a href="https://github.com/tlyyxjz/agentvet" className="text-gray-400 hover:text-gray-200 text-sm">
             GitHub
           </a>
           <Link to="/app" className="btn-primary text-sm">
@@ -37,7 +37,7 @@ export default function Landing() {
           <span className="text-green-400">$</span>{' '}
           <span className="text-white">agentvet scan ./my-agent</span>
           {'\n\n'}
-          <span className="text-blue-400">AgentVet v0.1.0</span> — AI Agent Security Scanner
+          <span className="text-blue-400">AgentVet v0.4.0</span> — AI Agent Security Scanner
           {'\n'}
           {'\n'}
           <span className="text-red-400">[!] HIGH — Prompt Injection</span>{' '}
@@ -61,7 +61,7 @@ export default function Landing() {
             Start Free Scan
           </Link>
           <a
-            href="https://github.com/agentvet/agentvet"
+            href="https://github.com/tlyyxjz/agentvet"
             className="btn-ghost text-lg px-8 py-3"
           >
             View on GitHub

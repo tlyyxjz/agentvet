@@ -63,8 +63,9 @@ def icon_severity(severity: str) -> str:
 
 
 def print_banner():
-    print(f"{BOLD}{BLUE}  AgentVet v0.1.0 — AI Agent Security Scanner{RESET}")
-    print(f"  {GRAY}https://github.com/agentvet/agentvet{RESET}")
+    from scanner import __version__
+    print(f"{BOLD}{BLUE}  AgentVet v{__version__} — AI Agent Security Scanner{RESET}")
+    print(f"  {GRAY}https://github.com/tlyyxjz/agentvet{RESET}")
     print()
 
 
@@ -108,6 +109,25 @@ def print_report(report: ScanReport, json_output: bool = False):
     # Summary
     total = len(report.findings)
     print(f"  {'─' * 50}")
+
+    # ── L4 attack chain ──────────────────────────────────────────
+    if report.chain:
+        chain = report.chain
+        print(f"\n  {BOLD}{RED}[ATTACK CHAIN] {chain.campaign_name}{RESET}")
+        print(f"  {GRAY}{chain.executive_summary[:200]}{RESET}")
+        print(f"  {'─' * 50}")
+        for s in chain.stages:
+            print(f"\n  {BOLD}Stage {s.stage}: {s.stage_name}{RESET}")
+            print(f"  {GRAY}Entry: {s.entry_point}{RESET}")
+            print(f"  {s.technique[:150]}")
+            if s.enables_next_stage:
+                print(f"  {YELLOW}→ {s.enables_next_stage[:150]}{RESET}")
+        if chain.mitigation_priority:
+            print(f"\n  {BOLD}{GREEN}[FIX PRIORITY]{RESET}")
+            for m in chain.mitigation_priority[:3]:
+                print(f"  {m['order']}. {m['action'][:120]} [{m.get('effort', '?')} effort]")
+        print()
+
     score_color = RED if report.score in ("D", "F") else YELLOW if report.score == "C" else GREEN
     print(f"  Score: {score_color}{report.score}{RESET}  "
           f"({report.critical_count} critical, {report.high_count} high, "
@@ -118,7 +138,7 @@ def print_report(report: ScanReport, json_output: bool = False):
 
 
 def cmd_scan(args):
-    engine = ScanEngine()
+    engine = ScanEngine(use_l2=args.depth >= 2, use_l3=args.depth >= 3, use_l4=args.depth >= 3)
     report = engine.scan(args.target)
     print_report(report, args.json)
 
@@ -128,6 +148,10 @@ def cmd_scan(args):
         report_path.write_text(
             json.dumps(report.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
         )
+
+    # CI gate — exit non-zero when findings at or above --fail-on threshold
+    if report.fails_on(args.fail_on):
+        return 2
     return 0 if report.high_count + report.critical_count == 0 else 1
 
 
@@ -147,6 +171,20 @@ def main():
     scan_p = sub.add_parser("scan", help="Scan an AI agent directory or file")
     scan_p.add_argument("target", help="Path to agent directory or file")
     scan_p.add_argument("--json", action="store_true", help="Output JSON format")
+    scan_p.add_argument(
+        "--depth", "-d",
+        type=int,
+        default=3,
+        choices=[1, 2, 3],
+        help="Scan depth: 1=L1 only, 2=L1+L2, 3=full pipeline (default: 3)",
+    )
+    scan_p.add_argument(
+        "--fail-on",
+        type=str,
+        default="high",
+        choices=["info", "low", "medium", "high", "critical"],
+        help="CI mode: exit non-zero if findings reach this severity (default: high)",
+    )
     scan_p.set_defaults(func=cmd_scan)
 
     _ver_p = sub.add_parser("version", help="Show version")

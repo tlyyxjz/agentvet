@@ -1,7 +1,16 @@
-"""Rule engine — loads and runs security rules against target code."""
+"""Rule engine — loads and runs security rules against target code.
+
+Rules are auto-discovered from scanner/rules/. To add a new rule:
+  1. Create a .py file in scanner/rules/
+  2. Subclass Rule (or RegexRule/ASTRule)
+  3. Set rule_id, title, description
+No registration in engine.py needed.
+"""
 
 import ast
 import fnmatch
+import importlib
+import inspect
 import logging
 import os
 import re
@@ -21,6 +30,7 @@ class Rule:
     title: str = ""
     description: str = ""
     file_patterns: list[str] = ["*.py"]  # glob patterns for files to scan
+    owasp_ids: list[str] = []  # mapped OWASP Top 10 (LLM + Agentic AI)
 
     def check(self, file_path: str, content: str) -> list[Finding]:
         """Run this rule against a single file. Override in subclasses."""
@@ -48,6 +58,7 @@ class RegexRule(Rule):
                             description=desc,
                             code_snippet=self._get_context(lines, i),
                             fix_suggestion=self.fix_suggestion(),
+                            owasp_ids=list(self.owasp_ids),
                         )
                     )
         return findings
@@ -83,10 +94,11 @@ class ASTRule(Rule):
 class ScanEngine:
     """Orchestrates scanning a target directory with all registered rules.
 
-    Three-tier detection:
+    Three-tier detection + chain synthesis:
       L1 — regex + AST (fast, broad, some noise)
       L2 — local LLM semantic filter (slower, removes false positives)
       L3 — DeepSeek deep audit (attack path analysis on confirmed HIGH/CRITICAL)
+      L4 — Cross-finding attack chain synthesis (how vulns combine into full attacks)
     """
 
     # Directories skipped during file collection
@@ -96,40 +108,65 @@ class ScanEngine:
         "targets", ".tmp", "plugins", "archive", "reports",
     }
 
-    def __init__(self, rules: Optional[list[Rule]] = None, use_l2: bool = True, use_l3: bool = True):
+    def __init__(self, rules: Optional[list[Rule]] = None, use_l2: bool = True, use_l3: bool = True, use_l4: bool = True):
         self.rules = rules or self._default_rules()
         self.use_l2 = use_l2
         self.use_l3 = use_l3
+        self.use_l4 = use_l4
         self._l2_filter = None  # lazy init
         self._l3_auditor = None  # lazy init
+        self._l4_chain = None  # lazy init
+
+    # Minimum number of rules expected. If auto-discovery finds fewer,
+    # the engine logs a warning — this prevents silent failures.
+    _MIN_RULES = 4
+
+    @classmethod
+    def _discover_rules(cls) -> list[Rule]:
+        """Auto-discover Rule subclasses from scanner/rules/ directory.
+
+        Scans all non-private .py files, imports them, and finds classes
+        that subclass Rule (excluding the base classes themselves).
+
+        Rule authors only need to drop a .py file with a Rule subclass
+        into scanner/rules/ — no registration in engine.py needed.
+        """
+        rules_dir = Path(__file__).parent / "rules"
+        discovered: list[Rule] = []
+
+        for py_file in sorted(rules_dir.glob("*.py")):
+            if py_file.name.startswith("_"):
+                continue
+            module_name = f"scanner.rules.{py_file.stem}"
+            try:
+                module = importlib.import_module(module_name)
+                for _name, obj in inspect.getmembers(module, inspect.isclass):
+                    # Skip the base classes defined in this module
+                    if obj in (Rule, RegexRule, ASTRule):
+                        continue
+                    if issubclass(obj, Rule) and getattr(obj, "rule_id", ""):
+                        try:
+                            discovered.append(obj())
+                        except Exception:
+                            logger.warning(
+                                "Failed to instantiate rule %s", obj.__name__, exc_info=True
+                            )
+            except Exception:
+                logger.warning(
+                    "Failed to load rules from %s", py_file, exc_info=True
+                )
+
+        if len(discovered) < cls._MIN_RULES:
+            logger.warning(
+                "Only %d rules discovered (expected >=%d). "
+                "Check scanner/rules/ for .py files with Rule subclasses.",
+                len(discovered), cls._MIN_RULES,
+            )
+
+        return discovered
 
     def _default_rules(self) -> list[Rule]:
-        from .rules.prompt_injection import (
-            DirectInputConcatRule,
-            MissingInputSanitization,
-            NoSystemDefenseRule,
-        )
-        from .rules.tool_auth import (
-            HighRiskToolNoConfirmRule,
-            MissingToolPermissionRule,
-        )
-        from .rules.data_leak import (
-            LogSensitiveDataRule,
-            ExternalServiceNoAuditRule,
-        )
-
-        return [
-            # Prompt injection
-            DirectInputConcatRule(),
-            MissingInputSanitization(),
-            NoSystemDefenseRule(),
-            # Tool authorization
-            HighRiskToolNoConfirmRule(),
-            MissingToolPermissionRule(),
-            # Data leakage
-            LogSensitiveDataRule(),
-            ExternalServiceNoAuditRule(),
-        ]
+        return self._discover_rules()
 
     def scan(self, target: str, file_patterns: Optional[list[str]] = None) -> ScanReport:
         """Scan a target directory or file and return a report."""
@@ -203,6 +240,18 @@ class ScanEngine:
                 # Merge L3 results into findings
                 self._l3_auditor.enrich(report.findings)
 
+        # ── L4 attack chain synthesis ─────────────────────────────
+        if self.use_l4 and report.findings:
+            if self._l4_chain is None:
+                from .l4_chain import L4ChainAnalyzer
+
+                self._l4_chain = L4ChainAnalyzer()
+            if self._l4_chain.api_key:
+                chain_report = self._l4_chain.analyze(report.findings)
+                report.chain = chain_report.chain
+                report.chain_model = chain_report.model
+                report.chain_duration_ms = chain_report.duration_ms
+
         report.duration_ms = (time.perf_counter() - start) * 1000
         report.l2_filtered_count = l2_dropped
         report.l3_audited_count = l3_audited
@@ -228,7 +277,7 @@ class ScanEngine:
 
     def _collect_files(self, target: Path, file_patterns: Optional[list[str]]) -> list[Path]:
         """Collect files to scan."""
-        patterns = file_patterns or ["*.py", "*.js", "*.ts", "*.tsx", "*.jsx"]
+        patterns = file_patterns or ["*.py", "*.js", "*.ts", "*.tsx", "*.jsx", "*.json"]
 
         if target.is_file():
             return [target]
