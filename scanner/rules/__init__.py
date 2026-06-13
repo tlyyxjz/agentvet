@@ -1,0 +1,1 @@
+"""AgentVet security scanning rules."""
