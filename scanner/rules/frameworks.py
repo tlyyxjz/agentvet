@@ -7,6 +7,10 @@ introduce security risk beyond what the generic PI/TA/DL rules catch.
 from ..engine import RegexRule
 from ..findings import Severity
 
+# Shared regex fragments for multiline patterns — stop at function/class boundaries
+_STOP_AT_FUNC = r"(?:(?!\n\s*(?:def\s|class\s|@)).)"
+_STOP_AT_DECORATOR = r"(?:(?!\n\s*(?:@|def\s|class\s)).)"
+
 
 class LangChainToolNoConfirmRule(RegexRule):
     """Detect LangChain @tool functions that execute dangerous operations
@@ -33,17 +37,17 @@ class LangChainToolNoConfirmRule(RegexRule):
         (r"@tool", "@tool decorator without confirmation guard"),
         # subprocess/os.system inside tool without confirmation
         (
-            r"def\s+\w+.*(?:\n|.){0,200}?(?:subprocess\.|os\.system|os\.popen)",
+            rf"def\s+\w+[^\n]*\n{_STOP_AT_FUNC}{{0,500}}?(?:subprocess\.|os\.system|os\.popen)",
             "Shell execution inside @tool function — missing confirmation prompt",
         ),
         # File delete/write inside tool without confirmation
         (
-            r"def\s+\w+.*(?:\n|.){0,200}?(?:os\.remove|shutil\.rmtree|Path\(.*\)\.unlink)",
+            rf"def\s+\w+[^\n]*\n{_STOP_AT_FUNC}{{0,500}}?(?:os\.remove|shutil\.rmtree|Path\(.*\)\.unlink)",
             "File deletion inside @tool function — missing confirmation prompt",
         ),
         # requests.post without user approval check
         (
-            r"def\s+\w+.*(?:\n|.){0,200}?requests\.(?:post|put|delete|patch)",
+            rf"def\s+\w+[^\n]*\n{_STOP_AT_FUNC}{{0,500}}?requests\.(?:post|put|delete|patch)",
             "Outbound HTTP inside @tool function — missing confirmation prompt",
         ),
     ]
@@ -135,7 +139,7 @@ class CrewAITaskExecRule(RegexRule):
         ),
         # Tool that wraps os.system / subprocess
         (
-            r"class\s+\w*Tool\w*.*(?:\n|.){0,300}?(?:os\.system|subprocess\.)",
+            rf"class\s+\w*Tool\w*[^\n]*\n{_STOP_AT_FUNC}{{0,500}}?(?:os\.system|subprocess\.)",
             "CrewAI Tool with shell access — output not validated before execution",
         ),
     ]
@@ -175,7 +179,7 @@ class DifyAPIPluginNoAuthRule(RegexRule):
     patterns = [
         # Dify plugin route decorator without permission check
         (
-            r"@app\.route.*(?:\n|.){0,300}?def\s+\w+.*(?:\n|.){0,200}?(?!.*?(?:permission|auth|workspace_id|current_user))",
+            rf"@app\.route[^\n]*\n{_STOP_AT_DECORATOR}{{0,500}}?def\s+\w+[^\n]*\n{_STOP_AT_FUNC}{{0,500}}?(?!.*?(?:permission|auth|workspace_id|current_user))",
             "Dify plugin route — verify workspace-level permission is checked",
         ),
     ]

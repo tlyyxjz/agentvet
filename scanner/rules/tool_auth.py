@@ -4,7 +4,7 @@ Detects high-risk tools registered without user confirmation,
 and missing permission checks before tool execution.
 """
 
-from ..engine import ASTRule, RegexRule
+from ..engine import RegexRule
 from ..findings import Severity
 
 
@@ -26,7 +26,7 @@ class HighRiskToolNoConfirmRule(RegexRule):
         # Python
         # Tool function definition with high-risk operations, no confirm
         (
-            rf"(def |async def )\w*(shell|bash|exec|delete|remove|write)\w*",
+            r"(def |async def )\w*(shell|bash|exec|delete|remove|write)\w*",
             "高风险工具函数定义，检查是否缺少确认机制",
         ),
         # os.system / subprocess calls without guard
@@ -120,4 +120,76 @@ class MissingToolPermissionRule(RegexRule):
             '      if not auth.is_admin(user_id):\n'
             '          return "权限不足"\n'
             "      # ... 执行操作"
+        )
+
+
+class CrossAgentPermissionLeakRule(RegexRule):
+    """Detect multi-agent orchestration where auth context is lost when one
+    agent delegates tasks to another.
+
+    In multi-agent systems (AutoGen, CrewAI, LangGraph), a "manager" agent
+    often spawns sub-agents to handle specific tasks. When the sub-agent is
+    created without inheriting the caller's permission scope, it runs with
+    full system privileges — bypassing the original user's restrictions.
+
+    Real attack: A user with read-only access asks the manager agent a
+    question. The manager spawns a sub-agent that writes to the database
+    because the permission check happened at the manager level, not the
+    sub-agent level.
+    """
+
+    rule_id = "TA-003"
+    title = "Cross-agent delegation loses caller permission context"
+    description = (
+        "A sub-agent or child task is spawned without passing the caller's "
+        "permission context (user_id, role, scope). The sub-agent inherits "
+        "the parent process's privileges rather than the original user's — "
+        "effectively a horizontal privilege escalation within the agent system."
+    )
+    file_patterns = ["*.py", "*.js", "*.ts", "*.tsx", "*.jsx"]
+    owasp_ids = ["AG-03", "LLM06"]
+
+    patterns = [
+        # Python: Creating sub-agent without passing user context
+        # agent.run() / agent.invoke() / asyncio.create_task(agent.process())
+        (
+            r"(?:\.run\(|\.invoke\(|\.process\(|\.execute\(|create_task\()(?!.*(?:user_id|auth|permission|scope|context|caller))",
+            "Sub-agent spawned without passing caller's permission context",
+        ),
+        # CrewAI: Task creation without context propagation
+        (
+            r"Task\s*\([^)]*agent\s*=\s*\w+(?!.*context\s*=)(?!.*user_id\s*=)",
+            "CrewAI Task delegates to agent without inheriting user context",
+        ),
+        # AutoGen: initiate_chat / a_initiate_chat without carryover
+        (
+            r"(?:initiate_chat|a_initiate_chat)\s*\([^)]*(?!.*carryover\s*=)",
+            "AutoGen inter-agent chat initiated without context carryover",
+        ),
+        # LangGraph: StateGraph with subgraph but no auth in state schema
+        (
+            r"StateGraph\s*\([^)]*\)(?!.*\bauth\b)",
+            "LangGraph state machine defined without auth field in state schema",
+        ),
+        # JS/TS: Child agent spawned without auth
+        (
+            r"(?:createChildAgent|spawnAgent|createAgent)\s*\([^)]*(?!.*(?:userId|auth|permission|scope|context))",
+            "JavaScript child agent spawned without permission propagation",
+        ),
+    ]
+
+    def _severity(self):
+        return Severity.HIGH
+
+    def fix_suggestion(self) -> str:
+        return (
+            "Always propagate caller identity and permissions to sub-agents:\n"
+            "  sub_agent.run(\n"
+            "      task=task_description,\n"
+            '      context={"user_id": caller_context.user_id,\n'
+            '               "role": caller_context.role,\n'
+            '               "permissions": caller_context.permissions}\n'
+            "  )\n\n"
+            "Sub-agents MUST verify context before executing privileged operations.\n"
+            "Never assume the parent has already checked — defense in depth."
         )
