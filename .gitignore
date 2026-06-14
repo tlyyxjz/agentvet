@@ -32,6 +32,4 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 test_target/
-dist/
-*.egg-info/
 build/

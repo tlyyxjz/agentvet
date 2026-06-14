@@ -1,0 +1,57 @@
+vulnerable:
+  pi_001_concat.py:
+    - rule: PI-001
+      line: 5
+      cwe: "CWE-74"
+      severity: HIGH
+  ta_001_no_confirm.py:
+    - rule: TA-001
+      line: 3
+      cwe: "CWE-862"
+      severity: HIGH
+  sec_001_hardcoded_key.py:
+    - rule: SEC-001
+      line: 1
+      cwe: "CWE-798"
+      severity: CRITICAL
+  sec_002_aws_key.py:
+    - rule: SEC-002
+      line: 1
+      cwe: "CWE-798"
+      severity: CRITICAL
+  mcp_001_no_auth.json:
+    - rule: MCP-001
+      line: 5
+      cwe: "CWE-306"
+      severity: HIGH
+  fw_001_no_docker.py:
+    - rule: FW-002
+      line: 4
+      cwe: "CWE-250"
+      severity: CRITICAL
+
+safe:
+  pi_001_ok.py:
+    - rule: PI-001
+      line: 0
+      note: "正确使用分隔符+防御声明"
+  ta_001_ok.py:
+    - rule: TA-001
+      line: 0
+      note: "有确认回调"
+  sec_001_ok.py:
+    - rule: SEC-001
+      line: 0
+      note: "使用环境变量"
+  sec_002_ok.py:
+    - rule: SEC-002
+      line: 0
+      note: "使用环境变量"
+  mcp_001_ok.json:
+    - rule: MCP-001
+      line: 0
+      note: "有Authorization header"
+  fw_001_ok.py:
+    - rule: FW-002
+      line: 0
+      note: "use_docker=True"

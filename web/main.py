@@ -9,22 +9,20 @@ import logging
 import os
 import sqlite3
 import tempfile
-import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-logger = logging.getLogger(__name__)
-
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from scanner import __version__
 from scanner.engine import ScanEngine
 from scanner.findings import ScanReport
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="AgentVet API",

@@ -24,7 +24,6 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -55,8 +54,14 @@ dev = ["pytest", "ruff"]
 include = ["scanner*", "cli*", "web*"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py310"
+
+[tool.ruff.lint.per-file-ignores]
+"scanner/l3_audit.py" = ["E501"]
+"scanner/l4_chain.py" = ["E501"]
+"scanner/rules/tool_auth.py" = ["E501"]
+"scanner/rules/prompt_injection.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from .findings import Finding, ScanReport
+from .findings import Finding, ScanReport, Severity
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +127,13 @@ class ScanEngine:
         "targets", ".tmp", "plugins", "archive", "reports",
     }
 
-    def __init__(self, rules: Optional[list[Rule]] = None, use_l2: bool = True, use_l3: bool = True, use_l4: bool = True):
+    def __init__(
+        self,
+        rules: Optional[list[Rule]] = None,
+        use_l2: bool = True,
+        use_l3: bool = True,
+        use_l4: bool = True,
+    ):
         self.rules = rules or self._default_rules()
         self.use_l2 = use_l2
         self.use_l3 = use_l3
@@ -198,7 +204,7 @@ class ScanEngine:
                 Finding(
                     rule_id="engine",
                     title="Target not found",
-                    severity="info",
+                    severity=Severity.INFO,
                     file_path=target,
                     line_number=0,
                     description=f"Path does not exist: {target}",

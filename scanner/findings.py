@@ -103,12 +103,17 @@ class ScanReport:
                 counts[oid] = counts.get(oid, 0) + 1
         return counts
 
+    @staticmethod
+    def _severity_value(sev) -> str:
+        """Normalize severity to a string: handles both Severity enum and plain str."""
+        return sev.value if isinstance(sev, Severity) else str(sev)
+
     def fails_on(self, minimum_severity: str) -> bool:
         """Whether this report fails a CI gate at the given severity threshold."""
         order = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
         threshold = order.get(minimum_severity, 4)
         for f in self.findings:
-            if order.get(f.severity.value, 0) >= threshold:
+            if order.get(self._severity_value(f.severity), 0) >= threshold:
                 return True
         return False
 

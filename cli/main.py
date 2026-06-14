@@ -107,7 +107,6 @@ def print_report(report: ScanReport, json_output: bool = False):
             print()
 
     # Summary
-    total = len(report.findings)
     print(f"  {'─' * 50}")
 
     # ── L4 attack chain ──────────────────────────────────────────
@@ -180,7 +179,7 @@ def main():
     )
     scan_p.add_argument(
         "--fail-on",
-        type=str,
+        type=str.lower,
         default="high",
         choices=["info", "low", "medium", "high", "critical"],
         help="CI mode: exit non-zero if findings reach this severity (default: high)",

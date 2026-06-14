@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "github-slim": {
+      "type": "http",
+      "url": "https://api.github.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_TOKEN}"
+      }
+    },
+    "vercel": {
+      "type": "http",
+      "url": "https://mcp.vercel.com",
+      "headers": {
+        "Authorization": "Bearer vc-xxxx"
+      }
+    }
+  }
+}
