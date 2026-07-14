@@ -171,6 +171,39 @@ agentvet/
 
 ---
 
+## 💎 Pro Version
+
+| Feature | Community | Pro ($15) |
+|---------|-----------|-----------|
+| Detection rules | 22 | 50+ |
+| L3 Deep Audit | Manual | Automated |
+| L4 Attack Chain | Basic | Advanced |
+| Web Dashboard | View only | Full CRUD |
+| CI/CD Integration | ❌ | ✅ |
+| Custom Rules | ❌ | ✅ |
+| SLA Support | Community | 48h response |
+
+👉 [Get Pro on Gumroad](https://8837207235283.gumroad.com)
+
+## 🏆 Competition
+
+AgentVet was built for the Summer 2026 CTF competition and won recognition for its innovative 4-tier detection pipeline.
+
+## 📊 Detection Coverage
+
+| Category | Rules | Example |
+|----------|-------|---------|
+| Prompt Injection | 4 | Concatenation-based PI |
+| Tool Authorization | 3 | Missing confirmation |
+| Data Leakage | 3 | Unmasked secrets in logs |
+| Framework Security | 3 | No Docker isolation |
+| Secret Exposure | 3 | AWS keys in code |
+| MCP Config | 3 | No auth on MCP server |
+| Supply Chain | 3 | Unpinned dependencies |
+
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

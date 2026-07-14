@@ -33,3 +33,11 @@ frontend/dist/
 Thumbs.db
 test_target/
 build/
+
+# === Monetization auto-exclusions ===
+agentvet-tmp/
+BugTalk/
+skill/
+agentvet.egg-info/
+.pytest_cache/
+*.zip
