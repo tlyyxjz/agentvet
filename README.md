@@ -13,7 +13,7 @@ One command. Find vulnerabilities in your AI agent code.
 ## Features
 
 - **4-Tier Detection Pipeline**
-  - **L1** — Regex + AST patterns (fast, broad coverage)
+  - **L1** — Regex patterns (fast, broad coverage, 22 rules)
   - **L2** — Ollama semantic filter (removes false positives, ~24s/batch)
   - **L3** — DeepSeek deep audit (attack paths + PoC + CVSS + fix, on HIGH/CRITICAL only)
   - **L4** — Cross-finding attack chain synthesis (how vulns combine into full attack campaigns) — *unique to AgentVet*
@@ -100,7 +100,7 @@ Copy `.env.example` to `.env` and set your values:
 scan target
   │
   ├─ L1: RegexRule + ASTRule  (~1s,  free, ~60% coverage)
-  │   └─ 17 rules auto-discovered from scanner/rules/
+  │   └─ 22 rules auto-discovered from scanner/rules/
   │
   ├─ L2: Ollama qwen3:8b     (~24s, free, removes ~30% noise)
   │   └─ Batch classify: REAL vs NOISE
@@ -155,8 +155,33 @@ agentvet/
 ├── web/              # FastAPI backend
 ├── frontend/         # React + Vite + Tailwind
 ├── docs/             # Documentation
-└── tests/            # Test suite (coming soon)
+└── tests/            # Test suite (78 tests: rules + engine + fixtures)
 ```
+
+---
+
+## Testing
+
+The project includes a comprehensive test suite (78 tests) covering all 22 detection rules, the scan engine, and fixture-based validation.
+
+```bash
+# Run all tests
+python -m pytest tests/ -v --tb=short
+
+# Run only rule tests
+python -m pytest tests/test_rules.py -v
+
+# Run only engine tests
+python -m pytest tests/test_engine.py -v
+
+# Run only fixture tests
+python -m pytest tests/test_fixtures.py -v
+```
+
+### Test Fixtures
+
+- `tests/fixtures/vulnerable/` — 6 files with known vulnerabilities (must trigger findings)
+- `tests/fixtures/safe/` — 6 files with secure equivalents (must produce zero findings)
 
 ---
 
@@ -195,11 +220,11 @@ AgentVet was built for the Summer 2026 CTF competition and won recognition for i
 |----------|-------|---------|
 | Prompt Injection | 4 | Concatenation-based PI |
 | Tool Authorization | 3 | Missing confirmation |
-| Data Leakage | 3 | Unmasked secrets in logs |
-| Framework Security | 3 | No Docker isolation |
+| Data Leakage | 2 | Unmasked secrets in logs |
+| Framework Security | 4 | No Docker isolation |
 | Secret Exposure | 3 | AWS keys in code |
-| MCP Config | 3 | No auth on MCP server |
-| Supply Chain | 3 | Unpinned dependencies |
+| MCP Config | 4 | No auth on MCP server |
+| Supply Chain | 2 | Obfuscated payload in skill |
 
 
 ---

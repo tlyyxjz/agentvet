@@ -4,12 +4,27 @@ Detects high-risk tools registered without user confirmation,
 and missing permission checks before tool execution.
 """
 
+import re
+
 from ..engine import RegexRule
 from ..findings import Severity
 
 
 _HIGH_RISK_TOOLS = r"(shell|bash|exec|eval|subprocess|os\.system|os\.popen|commands\.getoutput|rm |delete|unlink|write_file|send_email|http\.post|requests\.post|fetch)"
 _CONFIRMATION_KEYWORDS = r"(confirm|confirmation|require_approval|ask_user|user_confirm|need_confirm|approval_required)"
+
+# Confirmation indicators — when present near a finding, suppress the finding
+# because the developer has implemented an explicit user-confirmation step.
+_CONFIRMATION_DECORATOR_RE = re.compile(
+    r"@\w*tool\w*\s*\([^)]*\bconfirmation\s*=", re.IGNORECASE
+)
+_CONFIRMATION_DECORATOR_PLAIN_RE = re.compile(
+    r"@\w*tool\w*\s*\([^)]*\brequire_confirmation\s*=\s*True", re.IGNORECASE
+)
+_CONFIRMATION_CALL_RE = re.compile(
+    r"\b(?:input|confirm|ask_user|require_confirmation|user_confirm|need_confirm)\s*\(",
+    re.IGNORECASE,
+)
 
 
 class HighRiskToolNoConfirmRule(RegexRule):
@@ -72,6 +87,42 @@ class HighRiskToolNoConfirmRule(RegexRule):
             '  if not await ask_user(f"确认删除 {path}?"): return'
         )
 
+    def check(self, file_path: str, content: str) -> list:
+        """Run regex patterns, then drop findings that already have a
+        confirmation mechanism (decorator with ``confirmation=`` /
+        ``require_confirmation=True``, or a confirmation call in the
+        function body).
+        """
+        findings = super().check(file_path, content)
+        if not findings:
+            return []
+
+        lines = content.split("\n")
+        kept = []
+        for f in findings:
+            if self._has_confirmation_nearby(lines, f.line_number):
+                continue
+            kept.append(f)
+        return kept
+
+    @staticmethod
+    def _has_confirmation_nearby(lines: list, line_no: int) -> bool:
+        """Return True if a confirmation mechanism appears in the decorator
+        above the finding or in the function body below it.
+        """
+        # Look up to 6 lines above (decorators) and 30 lines below (body).
+        start = max(0, line_no - 6)
+        end = min(len(lines), line_no + 30)
+        window = "\n".join(lines[start:end])
+
+        if _CONFIRMATION_DECORATOR_RE.search(window):
+            return True
+        if _CONFIRMATION_DECORATOR_PLAIN_RE.search(window):
+            return True
+        if _CONFIRMATION_CALL_RE.search(window):
+            return True
+        return False
+
 
 class MissingToolPermissionRule(RegexRule):
     """Detect tool calls without authorization/permission checks."""
@@ -85,21 +136,28 @@ class MissingToolPermissionRule(RegexRule):
 
     patterns = [
         # Python
-        # Tool function that accesses sensitive resource without auth check
+        # Tool function that accesses sensitive resource without auth check.
+        # Drop "user"/"config" — too generic (matched delete_user, get_user_config, etc.)
         (
-            r"(def |async def )\w*(admin|user|config|secret|key|token|password|credential)\w*",
+            r"(def |async def )\w*(admin|secret|key|token|password|credential)\w*",
             "敏感操作函数定义，需检查是否有权限校验",
         ),
-        # Database write without permission check
+        # Database write via SQL execute() — require SQL keyword inside string literal
         (
-            r"(\.execute\(|\.commit\(|\.save\(|\.delete\(|\.update\(|INSERT|DELETE|UPDATE|DROP)",
-            "数据库写操作，检查调用前是否验证了权限",
+            r"\.execute\s*\(\s*['\"]\s*(?:INSERT\s+|DELETE\s+|UPDATE\s+|DROP\s+)",
+            "SQL写操作（execute），检查调用前是否验证了权限",
+        ),
+        # ORM commit/save/delete/update method calls — require call form with parens
+        (
+            r"\.\b(?:commit|save|delete|update)\b\s*\(",
+            "数据库写操作（commit/save/delete/update），检查调用前是否验证了权限",
         ),
         # JS/TS
-        # Prisma/ORM database write without auth
+        # Prisma/ORM database write — require prisma. prefix to avoid matching
+        # generic .create()/.delete() on any object (e.g. openai client)
         (
-            r"(\.(create|delete|update|upsert|deleteMany|updateMany)\s*\(|prisma\.\w+\.(create|delete|update))",
-            "数据库写操作（Prisma/ORM），检查调用前是否验证权限",
+            r"prisma\.\w+\.(?:create|delete|update|upsert|deleteMany|updateMany)\s*\(",
+            "Prisma数据库写操作，检查调用前是否验证权限",
         ),
         # Direct localStorage/sessionStorage access for auth tokens
         (

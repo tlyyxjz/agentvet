@@ -205,8 +205,12 @@ class L3DeepAudit:
         """Read file content, truncated to max_file_bytes."""
         try:
             path = Path(file_path).resolve()
-            # Prevent path traversal — reject paths escaping the working tree
-            if ".." in str(path):
+            # Prevent path traversal — reject paths outside allowed roots.
+            # The old check (`if ".." in str(path)`) was ineffective because
+            # Path.resolve() already collapses `..` components, so the
+            # substring check never matched. Instead, verify the resolved
+            # path lives under one of the configured audit roots.
+            if not self._is_within_allowed_roots(path):
                 return f"[Path traversal blocked: {file_path}]"
             if not path.exists():
                 return f"[File not found: {file_path}]"
@@ -219,6 +223,31 @@ class L3DeepAudit:
         except Exception:
             logger.warning("Could not read %s for L3 audit", file_path, exc_info=True)
             return f"[Could not read: {file_path}]"
+
+    @staticmethod
+    def _is_within_allowed_roots(path: Path) -> bool:
+        """Return True if *path* lives under one of the allowed audit roots.
+
+        Roots are read from the ``AGENTVET_AUDIT_ROOTS`` env var
+        (comma-separated, OS path separator tolerant). When unset, the
+        current working directory is used as the only root — which is the
+        safe default because L3 audits files that were found during a scan
+        launched from that directory.
+        """
+        env_roots = os.environ.get("AGENTVET_AUDIT_ROOTS", "")
+        if env_roots.strip():
+            roots = [Path(r.strip()).resolve() for r in env_roots.split(",") if r.strip()]
+        else:
+            roots = [Path.cwd().resolve()]
+        try:
+            for root in roots:
+                # is_relative_to would be cleaner, but only exists on 3.9+.
+                # Use relative_to with a try/except for broader compat.
+                path.relative_to(root)
+                return True
+        except ValueError:
+            pass
+        return False
 
     def _parse_response(self, raw: str) -> dict:
         """Extract JSON from DeepSeek response."""

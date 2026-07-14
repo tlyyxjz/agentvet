@@ -4,12 +4,24 @@ Covers LangChain, AutoGen, CrewAI, and Dify patterns that
 introduce security risk beyond what the generic PI/TA/DL rules catch.
 """
 
+import re
+
 from ..engine import RegexRule
 from ..findings import Severity
 
 # Shared regex fragments for multiline patterns — stop at function/class boundaries
 _STOP_AT_FUNC = r"(?:(?!\n\s*(?:def\s|class\s|@)).)"
 _STOP_AT_DECORATOR = r"(?:(?!\n\s*(?:@|def\s|class\s)).)"
+
+# Matches a @tool decorator that has a confirmation parameter set.
+# Examples that match (i.e. safe — should NOT be flagged):
+#   @tool(confirmation="Are you sure?")
+#   @tool(require_confirmation=True)
+#   @langchain.tool(confirmation="...")
+_TOOL_WITH_CONFIRMATION_RE = re.compile(
+    r"@\w*tool\w*\s*\([^)]*\b(?:confirmation|require_confirmation)\s*=",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 class LangChainToolNoConfirmRule(RegexRule):
@@ -33,8 +45,13 @@ class LangChainToolNoConfirmRule(RegexRule):
     file_patterns = ["*.py"]
 
     patterns = [
-        # @tool decorator followed by function containing dangerous calls
-        (r"@tool", "@tool decorator without confirmation guard"),
+        # @tool decorator without confirmation guard.
+        # The check() override below filters out @tool decorators that DO
+        # pass a confirmation parameter, so this pattern can stay broad.
+        (
+            r"@tool\b(?!\s*\([^)]*\b(?:confirmation|require_confirmation)\s*=)",
+            "@tool decorator without confirmation guard",
+        ),
         # subprocess/os.system inside tool without confirmation
         (
             rf"def\s+\w+[^\n]*\n{_STOP_AT_FUNC}{{0,500}}?(?:subprocess\.|os\.system|os\.popen)",
@@ -64,6 +81,39 @@ class LangChainToolNoConfirmRule(RegexRule):
             "Or add an explicit guard inside the function:\n"
             "  if not input('Confirm (y/n)? ').lower().startswith('y'): return"
         )
+
+    def check(self, file_path: str, content: str) -> list:
+        """Run regex patterns, then drop findings whose @tool decorator
+        already passes a ``confirmation=`` / ``require_confirmation=``
+        parameter (the developer has opted into confirmation).
+        """
+        findings = super().check(file_path, content)
+        if not findings:
+            return []
+
+        # Fast path: if the file has NO @tool-with-confirmation decorator
+        # anywhere, all findings stand.
+        if not _TOOL_WITH_CONFIRMATION_RE.search(content):
+            return findings
+
+        # Slow path: filter findings whose nearby decorator has confirmation.
+        lines = content.split("\n")
+        kept = []
+        for f in findings:
+            if self._decorator_has_confirmation(lines, f.line_number):
+                continue
+            kept.append(f)
+        return kept
+
+    @staticmethod
+    def _decorator_has_confirmation(lines: list, line_no: int) -> bool:
+        """Return True if a @tool(...) decorator with confirmation= appears
+        within a few lines above the finding.
+        """
+        start = max(0, line_no - 8)
+        end = min(len(lines), line_no + 2)
+        window = "\n".join(lines[start:end])
+        return bool(_TOOL_WITH_CONFIRMATION_RE.search(window))
 
 
 class AutoGenCodeExecRule(RegexRule):

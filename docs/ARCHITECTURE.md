@@ -46,8 +46,8 @@ agentvet/
 │   ├── l3_audit.py       # L3 DeepSeek deep audit (per-finding)
 │   ├── l4_chain.py       # L4 attack chain synthesis (AgentVet differentiator)
 │   └── rules/
-│       ├── prompt_injection.py   # PI-001/002/003
-│       ├── tool_auth.py          # TA-001/002
+│       ├── prompt_injection.py   # PI-001/002/003/004
+│       ├── tool_auth.py          # TA-001/002/003
 │       ├── data_leak.py          # DL-001/002
 │       ├── frameworks.py        # FW-001/002/003/004
 │       ├── secrets.py           # SEC-001/002/003
@@ -60,7 +60,7 @@ agentvet/
 │   └── main.py           # /scan, /api/history, /api/report/:id, /api/stats
 ├── frontend/             # React + Vite + Tailwind
 │   └── src/
-│       ├── components/   # Layout, ErrorBoundary
+│       ├── components/   # Layout
 │       └── pages/        # Landing, Dashboard, ScanResult
 ├── docs/
 │   └── ARCHITECTURE.md

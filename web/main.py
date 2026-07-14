@@ -73,6 +73,39 @@ def init_db():
 
 init_db()
 
+
+# ── path whitelist ──────────────────────────────────
+
+def _allowed_scan_roots() -> list[Path]:
+    """Return the list of paths the /scan endpoint is allowed to scan.
+
+    Configured via the ``ALLOWED_SCAN_ROOTS`` env var (comma-separated).
+    When unset, defaults to the current working directory only — which
+    means the API cannot scan arbitrary paths on the host without explicit
+    configuration. This prevents an attacker who can call /scan from
+    reading arbitrary files via the scanner's file-reading logic.
+    """
+    env = os.environ.get("ALLOWED_SCAN_ROOTS", "")
+    if env.strip():
+        return [Path(p.strip()).resolve() for p in env.split(",") if p.strip()]
+    return [Path.cwd().resolve()]
+
+
+def _is_scan_target_allowed(target: str) -> bool:
+    """Return True if *target* resolves to a path under an allowed root."""
+    try:
+        resolved = Path(target).resolve()
+    except (OSError, ValueError):
+        return False
+    for root in _allowed_scan_roots():
+        try:
+            resolved.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
 # ── request/response models ─────────────────────────────────────
 
 
@@ -115,6 +148,17 @@ def scan_target(target: str, depth: int = 3):
     """
     if not target or not Path(target).exists():
         raise HTTPException(status_code=400, detail=f"Target not found: {target}")
+
+    # Path whitelist — reject targets outside ALLOWED_SCAN_ROOTS to prevent
+    # the scanner from being used to read arbitrary host files.
+    if not _is_scan_target_allowed(target):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"Target '{target}' is outside the allowed scan roots. "
+                "Set ALLOWED_SCAN_ROOTS to include this path."
+            ),
+        )
 
     engine = ScanEngine(
         use_l2=depth >= 2,

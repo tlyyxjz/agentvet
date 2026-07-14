@@ -236,6 +236,26 @@ class ScanEngine:
                     logger.warning("Rule %s failed on %s", rule.rule_id, file_path, exc_info=True)
                     continue  # one bad rule shouldn't kill the scan
 
+        # ── Deduplicate findings ─────────────────────────
+        # Same rule_id + file_path + line_number should only produce one
+        # finding. Without this, multi-pattern rules (e.g. SEC-001) emit
+        # duplicate findings when several patterns match the same line.
+        if report.findings:
+            seen: set[tuple[str, str, int]] = set()
+            deduped: list[Finding] = []
+            for f in report.findings:
+                key = (f.rule_id, f.file_path, f.line_number)
+                if key in seen:
+                    continue
+                seen.add(key)
+                deduped.append(f)
+            if len(deduped) != len(report.findings):
+                logger.debug(
+                    "Dedup removed %d duplicate findings",
+                    len(report.findings) - len(deduped),
+                )
+            report.findings = deduped
+
         # ── L2 semantic filter ──────────────────────────────────
         l2_dropped = 0
         if self.use_l2 and report.findings:
@@ -288,8 +308,10 @@ class ScanEngine:
         # .min.js / .min.css
         if ".min." in name:
             return True
-        # Files in directories named 'Min' or 'min'
-        if "Min" in str(file_path.parent) or "min" in file_path.parent.name.split("/"):
+        # Files in directories named exactly 'Min' or 'min'.
+        # Original code used split("/") which doesn't work on Windows paths
+        # and substring match on "Min" falsely matched "Admin"/"Mining"/etc.
+        if file_path.parent.name in ("Min", "min"):
             return True
         # Single-line file longer than 500 chars is almost certainly minified
         lines = content.split("\n")
@@ -311,11 +333,11 @@ class ScanEngine:
             return [target]
 
         files = []
-        for root, dirs, _ in os.walk(target):
+        for root, dirs, filenames in os.walk(target):
             # Skip common non-source directories
             dirs[:] = [d for d in dirs if d not in self.SKIP_DIRS]
 
-            for filename in os.listdir(root):
+            for filename in filenames:
                 for pat in patterns:
                     if fnmatch.fnmatch(filename, pat):
                         files.append(Path(root) / filename)
